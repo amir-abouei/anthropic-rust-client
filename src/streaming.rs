@@ -21,13 +21,13 @@ impl MessageStream {
     }
 
     /// Collect all text deltas into a `String`.
+    ///
+    /// Returns an error if the stream fails partway through.
     pub async fn text(mut self) -> crate::error::Result<String> {
         let mut buf = String::new();
         while let Some(event) = self.next().await {
-            if let Ok(ev) = event {
-                if let Some(t) = ev.as_text_delta() {
-                    buf.push_str(t);
-                }
+            if let Some(t) = event?.as_text_delta() {
+                buf.push_str(t);
             }
         }
         Ok(buf)
@@ -55,19 +55,26 @@ impl Stream for MessageStream {
 
 // ── SSE parser ────────────────────────────────────────────────────────────────
 
+/// Find the first occurrence of `needle` in `haystack`.
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack.windows(needle.len()).position(|w| w == needle)
+}
+
 fn parse_sse(
     response: reqwest::Response,
 ) -> impl Stream<Item = crate::error::Result<StreamEvent>> + Send + 'static {
     let byte_stream = response.bytes_stream();
 
+    // The buffer holds raw bytes: a multi-byte UTF-8 character may be split
+    // across HTTP chunks, so decoding is deferred until a full event is framed.
     stream::unfold(
-        (byte_stream, String::new()),
+        (byte_stream, Vec::<u8>::new()),
         |(mut byte_stream, mut buffer)| async move {
             loop {
                 // If a complete SSE event is already in the buffer, parse it.
-                if let Some(pos) = buffer.find("\n\n") {
-                    let event_str = buffer[..pos].to_string();
-                    let remaining = buffer[pos + 2..].to_string();
+                if let Some(pos) = find_subslice(&buffer, b"\n\n") {
+                    let event_bytes: Vec<u8> = buffer.drain(..pos + 2).collect();
+                    let event_str = String::from_utf8_lossy(&event_bytes[..pos]);
 
                     // Extract the `data:` field.
                     let data = event_str
@@ -89,11 +96,10 @@ fn parse_sse(
                                 _ => Ok(ev),
                             });
 
-                            return Some((result, (byte_stream, remaining)));
+                            return Some((result, (byte_stream, buffer)));
                         }
                         None => {
-                            // Ping or event-only line — skip and continue.
-                            buffer = remaining;
+                            // Ping or event-only frame — skip and continue.
                             continue;
                         }
                     }
@@ -102,7 +108,7 @@ fn parse_sse(
                 // Need more bytes.
                 match byte_stream.next().await {
                     Some(Ok(chunk)) => {
-                        buffer.push_str(&String::from_utf8_lossy(&chunk));
+                        buffer.extend_from_slice(&chunk);
                     }
                     Some(Err(e)) => {
                         return Some((Err(AnthropicError::HttpError(e)), (byte_stream, buffer)));
@@ -112,4 +118,31 @@ fn parse_sse(
             }
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::find_subslice;
+
+    #[test]
+    fn find_subslice_basic() {
+        assert_eq!(find_subslice(b"abc\n\ndef", b"\n\n"), Some(3));
+        assert_eq!(find_subslice(b"no delimiter", b"\n\n"), None);
+        assert_eq!(find_subslice(b"\n\nstart", b"\n\n"), Some(0));
+    }
+
+    #[test]
+    fn framing_reconstructs_split_multibyte_char() {
+        // "café—" with the 3-byte em-dash split across two appends must decode
+        // correctly once the full frame is buffered.
+        let full = "café—\n\n".as_bytes().to_vec();
+        let split = 6; // mid em-dash sequence
+        let mut buffer = Vec::new();
+        buffer.extend_from_slice(&full[..split]);
+        buffer.extend_from_slice(&full[split..]);
+
+        let pos = find_subslice(&buffer, b"\n\n").unwrap();
+        let decoded = String::from_utf8_lossy(&buffer[..pos]);
+        assert_eq!(decoded, "café—");
+    }
 }

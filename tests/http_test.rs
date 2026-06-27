@@ -97,6 +97,49 @@ async fn check_response_non_json_error_body() {
     }
 }
 
+// ── Streaming SSE end-to-end (incl. non-ASCII text) ───────────────────────────
+
+#[tokio::test]
+async fn stream_collects_text_with_non_ascii() {
+    let mut server = mockito::Server::new_async().await;
+    let body = concat!(
+        "event: message_start\n",
+        r#"data: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"claude-haiku-4-5","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1,"output_tokens":0}}}"#,
+        "\n\n",
+        "event: content_block_start\n",
+        r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+        "\n\n",
+        "event: content_block_delta\n",
+        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"café—"}}"#,
+        "\n\n",
+        "event: content_block_stop\n",
+        r#"data: {"type":"content_block_stop","index":0}"#,
+        "\n\n",
+        "event: message_stop\n",
+        r#"data: {"type":"message_stop"}"#,
+        "\n\n",
+    );
+
+    let _m = server
+        .mock("POST", "/v1/messages")
+        .with_status(200)
+        .with_header("content-type", "text/event-stream")
+        .with_body(body)
+        .create_async()
+        .await;
+
+    let client = make_client(&server.url());
+    let req = CreateMessageRequest::builder()
+        .model(Model::claude_haiku_4_5())
+        .max_tokens(10)
+        .user("hi")
+        .build()
+        .unwrap();
+
+    let text = client.messages().stream(req).await.unwrap().text().await.unwrap();
+    assert_eq!(text, "café—");
+}
+
 // ── Config debug redacts API key ──────────────────────────────────────────────
 
 #[test]

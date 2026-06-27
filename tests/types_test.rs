@@ -2,7 +2,7 @@
 
 use anthropic_rust_client::{
     CacheControl, CreateMessageRequest, ImageMediaType, ImageSource, InputContentBlock,
-    MessageContent, Model, OutputContentBlock, Role, StopReason, SystemBlock,
+    MessageContent, MessageParam, Model, OutputContentBlock, Role, StopReason, SystemBlock,
     SystemPrompt, ThinkingConfig, Tool, ToolChoice, Usage,
 };
 use serde_json::json;
@@ -330,6 +330,48 @@ fn builder_multi_turn_conversation() {
     assert_eq!(msgs[0]["role"], json!("user"));
     assert_eq!(msgs[1]["role"], json!("assistant"));
     assert_eq!(msgs[2]["role"], json!("user"));
+}
+
+#[test]
+fn cache_control_promotes_plain_text_message() {
+    let req = CreateMessageRequest::builder()
+        .model(Model::claude_haiku_4_5())
+        .max_tokens(100)
+        .user("hello")
+        .cache_control(CacheControl::ephemeral())
+        .build()
+        .unwrap();
+
+    let j = serde_json::to_value(&req).unwrap();
+    let content = &j["messages"][0]["content"];
+    assert!(content.is_array());
+    assert_eq!(content[0]["type"], json!("text"));
+    assert_eq!(content[0]["text"], json!("hello"));
+    assert_eq!(content[0]["cache_control"]["type"], json!("ephemeral"));
+}
+
+#[test]
+fn cache_control_preserves_existing_blocks() {
+    // Regression: applying cache_control to a message that already has blocks
+    // must not discard those blocks.
+    let req = CreateMessageRequest::builder()
+        .model(Model::claude_haiku_4_5())
+        .max_tokens(100)
+        .message(MessageParam::user(vec![
+            InputContentBlock::text("block one"),
+            InputContentBlock::text("block two"),
+        ]))
+        .cache_control(CacheControl::ephemeral())
+        .build()
+        .unwrap();
+
+    let j = serde_json::to_value(&req).unwrap();
+    let content = j["messages"][0]["content"].as_array().unwrap();
+    assert_eq!(content.len(), 2, "existing blocks must be preserved");
+    assert_eq!(content[0]["text"], json!("block one"));
+    assert_eq!(content[1]["text"], json!("block two"));
+    assert_eq!(content[1]["cache_control"]["type"], json!("ephemeral"));
+    assert_eq!(content[0].get("cache_control"), None);
 }
 
 // ── OutputContentBlock helpers ────────────────────────────────────────────────

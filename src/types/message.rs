@@ -284,11 +284,15 @@ impl CreateMessageRequestBuilder {
         // If the last message has plain-text content, convert it to a single
         // text block first so the cache_control can be attached.
         if let Some(last) = self.messages.last_mut() {
-            if let MessageContent::Text(text) =
-                std::mem::replace(&mut last.content, MessageContent::Blocks(vec![]))
-            {
-                last.content =
-                    MessageContent::Blocks(vec![InputContentBlock::text(text)]);
+            // Only promote when the content is plain text; otherwise the
+            // existing blocks must be left untouched.
+            if matches!(last.content, MessageContent::Text(_)) {
+                if let MessageContent::Text(text) =
+                    std::mem::replace(&mut last.content, MessageContent::Blocks(Vec::new()))
+                {
+                    last.content =
+                        MessageContent::Blocks(vec![InputContentBlock::text(text)]);
+                }
             }
             if let MessageContent::Blocks(ref mut blocks) = last.content {
                 if let Some(last_block) = blocks.last_mut() {

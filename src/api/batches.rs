@@ -107,19 +107,22 @@ impl<'a> BatchesApi<'a> {
         let resp = Client::check_response(resp).await?;
 
         let mut results = Vec::new();
-        let mut buffer = String::new();
+        // Raw byte buffer: a multi-byte UTF-8 character may straddle two HTTP
+        // chunks, so decoding is deferred until each line is fully framed.
+        let mut buffer = Vec::<u8>::new();
         let mut stream = resp.bytes_stream();
 
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(AnthropicError::HttpError)?;
-            buffer.push_str(&String::from_utf8_lossy(&chunk));
+            buffer.extend_from_slice(&chunk);
 
-            while let Some(pos) = buffer.find('\n') {
-                let line = buffer[..pos].trim().to_string();
-                buffer.drain(..pos + 1);
+            while let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
+                let line_bytes: Vec<u8> = buffer.drain(..=pos).collect();
+                let line = String::from_utf8_lossy(&line_bytes);
+                let line = line.trim();
                 if !line.is_empty() {
                     results.push(
-                        serde_json::from_str::<BatchResult>(&line)
+                        serde_json::from_str::<BatchResult>(line)
                             .map_err(AnthropicError::JsonError)?,
                     );
                 }
@@ -127,7 +130,8 @@ impl<'a> BatchesApi<'a> {
         }
 
         // Handle any trailing content without a final newline.
-        let trailing = buffer.trim();
+        let trailing = String::from_utf8_lossy(&buffer);
+        let trailing = trailing.trim();
         if !trailing.is_empty() {
             results.push(
                 serde_json::from_str::<BatchResult>(trailing)

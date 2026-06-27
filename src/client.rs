@@ -90,24 +90,24 @@ impl Client {
         }
 
         let status = response.status().as_u16();
-        let bytes = response
-            .bytes()
-            .await
-            .unwrap_or_default();
+        let retry_after_secs = response
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok());
+
+        let bytes = response.bytes().await.map_err(AnthropicError::HttpError)?;
 
         let (message, error_type) =
             if let Ok(body) = serde_json::from_slice::<ApiErrorBody>(&bytes) {
                 (body.error.message, Some(body.error.error_type))
             } else {
-                (
-                    String::from_utf8_lossy(&bytes).to_string(),
-                    None,
-                )
+                (String::from_utf8_lossy(&bytes).to_string(), None)
             };
 
         Err(match status {
             401 => AnthropicError::AuthError { message },
-            429 => AnthropicError::RateLimitError { message, retry_after_secs: None },
+            429 => AnthropicError::RateLimitError { message, retry_after_secs },
             _ => AnthropicError::ApiError { status, message, error_type },
         })
     }

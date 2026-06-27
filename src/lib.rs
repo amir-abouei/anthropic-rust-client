@@ -56,8 +56,9 @@ pub use types::{
     batch::{BatchRequestItem, BatchResult, CreateBatchRequest, MessageBatch},
     common::{CacheControl, Metadata, Model, Role, StopReason, Usage},
     content::{
-        DocumentMediaType, DocumentSource, ImageMediaType, ImageSource, InputContentBlock,
-        MessageContent, OutputContentBlock, SystemBlock, SystemPrompt, ToolResultContent,
+        Citation, CitationsConfig, DocumentMediaType, DocumentSource, ImageMediaType, ImageSource,
+        InputContentBlock, MessageContent, OutputContentBlock, SystemBlock, SystemPrompt,
+        ToolResultContent,
     },
     file::{DeletedFile, FileList, FileMetadata, ListFilesParams},
     message::{

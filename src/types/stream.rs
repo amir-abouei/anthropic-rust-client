@@ -6,9 +6,12 @@ use super::{
     message::Message,
 };
 
+use crate::error::AnthropicError;
+
 /// All server-sent events emitted during a streaming response.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum StreamEvent {
     MessageStart {
         message: MessageStartData,
@@ -26,7 +29,6 @@ pub enum StreamEvent {
     },
     MessageDelta {
         delta: MessageDeltaData,
-        #[serde(skip_serializing_if = "Option::is_none")]
         usage: Option<StreamDeltaUsage>,
     },
     MessageStop,
@@ -86,6 +88,7 @@ pub struct MessageStartData {
 /// The initial state of a content block sent with `content_block_start`.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum ContentBlockStartData {
     Text { text: String },
     Thinking { thinking: String },
@@ -95,6 +98,7 @@ pub enum ContentBlockStartData {
 /// An incremental update for a content block.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum ContentBlockDelta {
     TextDelta { text: String },
     ThinkingDelta { thinking: String },
@@ -217,29 +221,41 @@ impl MessageAccumulator {
         }
     }
 
-    pub fn into_message(self) -> Message {
+    /// Convert accumulated events into a complete [`Message`].
+    ///
+    /// Returns an error if the stream was truncated (no `message_start` event)
+    /// or if streamed tool JSON is malformed.
+    pub fn into_message(self) -> crate::error::Result<Message> {
         use crate::types::common::{Role, Usage};
 
-        let content = self
-            .blocks
-            .into_iter()
-            .map(|b| match b {
+        let id = self.id.ok_or_else(|| {
+            AnthropicError::StreamError(
+                "stream ended without a message_start event".to_string(),
+            )
+        })?;
+
+        let mut content = Vec::with_capacity(self.blocks.len());
+        for block in self.blocks {
+            content.push(match block {
                 AccumulatedBlock::Text { text } => {
                     OutputContentBlock::Text { text, citations: None }
                 }
                 AccumulatedBlock::Thinking { thinking, signature } => {
                     OutputContentBlock::Thinking { thinking, signature }
                 }
-                AccumulatedBlock::ToolUse { id, name, partial_json } => {
-                    let input = serde_json::from_str(&partial_json)
-                        .unwrap_or(serde_json::Value::Null);
-                    OutputContentBlock::ToolUse { id, name, input }
+                AccumulatedBlock::ToolUse { id: tool_id, name, partial_json } => {
+                    let input = serde_json::from_str(&partial_json).map_err(|e| {
+                        AnthropicError::StreamError(format!(
+                            "malformed tool JSON for '{name}': {e}"
+                        ))
+                    })?;
+                    OutputContentBlock::ToolUse { id: tool_id, name, input }
                 }
-            })
-            .collect();
+            });
+        }
 
-        Message {
-            id: self.id.unwrap_or_default(),
+        Ok(Message {
+            id,
             message_type: "message".to_string(),
             role: Role::Assistant,
             model: self.model.unwrap_or_default(),
@@ -255,6 +271,6 @@ impl MessageAccumulator {
                 server_tool_use: None,
                 service_tier: None,
             },
-        }
+        })
     }
 }

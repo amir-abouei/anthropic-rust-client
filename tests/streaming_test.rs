@@ -138,7 +138,7 @@ fn accumulator_builds_text_message() {
     for ev in &events {
         acc.apply(ev);
     }
-    let msg = acc.into_message();
+    let msg = acc.into_message().unwrap();
 
     assert_eq!(msg.id, "msg_test");
     assert_eq!(msg.text(), "Hello, world!");
@@ -183,7 +183,7 @@ fn accumulator_builds_tool_use_message() {
     for ev in &events {
         acc.apply(ev);
     }
-    let msg = acc.into_message();
+    let msg = acc.into_message().unwrap();
 
     assert!(msg.wants_tool_use());
     let tool_uses = msg.tool_uses();
@@ -240,7 +240,7 @@ fn accumulator_builds_thinking_message() {
     for ev in &events {
         acc.apply(ev);
     }
-    let msg = acc.into_message();
+    let msg = acc.into_message().unwrap();
 
     assert_eq!(msg.thinking(), Some("Let me think step by step..."));
     assert_eq!(msg.text(), "The answer is 42.");

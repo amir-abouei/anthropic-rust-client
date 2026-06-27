@@ -1,3 +1,5 @@
+use futures::StreamExt;
+
 use crate::{
     client::Client,
     error::{AnthropicError, Result},
@@ -89,6 +91,10 @@ impl<'a> BatchesApi<'a> {
     /// Download and parse JSONL results for a completed batch.
     ///
     /// Fails if the batch has not yet ended (check `batch.is_ended()` first).
+    ///
+    /// The response body is parsed line-by-line as it arrives so the full
+    /// payload is never held in memory at once — each `BatchResult` is freed
+    /// after being pushed into the output `Vec`.
     pub async fn results(&self, batch_id: &str) -> Result<Vec<BatchResult>> {
         let resp = self
             .base_req(
@@ -99,14 +105,36 @@ impl<'a> BatchesApi<'a> {
             .await?;
 
         let resp = Client::check_response(resp).await?;
-        let text = resp.text().await?;
 
-        // Results are JSONL (one JSON object per line).
-        text.lines()
-            .filter(|l| !l.trim().is_empty())
-            .map(|line| {
-                serde_json::from_str::<BatchResult>(line).map_err(AnthropicError::JsonError)
-            })
-            .collect()
+        let mut results = Vec::new();
+        let mut buffer = String::new();
+        let mut stream = resp.bytes_stream();
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(AnthropicError::HttpError)?;
+            buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+            while let Some(pos) = buffer.find('\n') {
+                let line = buffer[..pos].trim().to_string();
+                buffer.drain(..pos + 1);
+                if !line.is_empty() {
+                    results.push(
+                        serde_json::from_str::<BatchResult>(&line)
+                            .map_err(AnthropicError::JsonError)?,
+                    );
+                }
+            }
+        }
+
+        // Handle any trailing content without a final newline.
+        let trailing = buffer.trim();
+        if !trailing.is_empty() {
+            results.push(
+                serde_json::from_str::<BatchResult>(trailing)
+                    .map_err(AnthropicError::JsonError)?,
+            );
+        }
+
+        Ok(results)
     }
 }

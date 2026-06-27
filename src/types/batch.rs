@@ -31,6 +31,7 @@ impl CreateBatchRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum BatchProcessingStatus {
     InProgress,
     Canceling,
@@ -81,6 +82,7 @@ pub struct MessageBatchList {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum BatchResultType {
     Succeeded { message: Message },
     Errored { error: BatchError },
@@ -111,8 +113,6 @@ pub struct ListBatchesParams {
 }
 
 impl ListBatchesParams {
-    pub fn new() -> Self { Self::default() }
-
     pub fn after_id(mut self, id: impl Into<String>) -> Self {
         self.after_id = Some(id.into());
         self

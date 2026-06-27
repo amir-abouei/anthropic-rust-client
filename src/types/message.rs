@@ -280,8 +280,16 @@ impl CreateMessageRequestBuilder {
     }
 
     pub fn cache_control(mut self, cc: CacheControl) -> Self {
-        // Applies cache_control to the last message's last block (if applicable).
+        // Applies cache_control to the last block of the last message.
+        // If the last message has plain-text content, convert it to a single
+        // text block first so the cache_control can be attached.
         if let Some(last) = self.messages.last_mut() {
+            if let MessageContent::Text(text) =
+                std::mem::replace(&mut last.content, MessageContent::Blocks(vec![]))
+            {
+                last.content =
+                    MessageContent::Blocks(vec![InputContentBlock::text(text)]);
+            }
             if let MessageContent::Blocks(ref mut blocks) = last.content {
                 if let Some(last_block) = blocks.last_mut() {
                     match last_block {

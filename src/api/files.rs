@@ -40,20 +40,22 @@ impl<'a> FilesApi<'a> {
         let mime_type = mime_type.into();
         let data = data.into();
 
-        let part = reqwest::multipart::Part::bytes(data.to_vec())
+        // Use Part::stream so the Bytes buffer is not copied into a Vec.
+        // reqwest::multipart sets the correct Content-Type header automatically,
+        // overriding the client-level application/json default.
+        let part = reqwest::multipart::Part::stream(data)
             .file_name(filename)
             .mime_str(&mime_type)
             .map_err(|e| crate::error::AnthropicError::FileError(e.to_string()))?;
 
         let form = reqwest::multipart::Form::new().part("file", part);
 
-        let req = self
+        let resp = self
             .base_req(reqwest::Method::POST, "/v1/files")
-            // multipart overrides content-type; remove the JSON default
-            .header(reqwest::header::CONTENT_TYPE, reqwest::header::HeaderValue::from_static(""))
-            .multipart(form);
+            .multipart(form)
+            .send()
+            .await?;
 
-        let resp = req.send().await?;
         let resp = Client::check_response(resp).await?;
         Ok(resp.json::<FileMetadata>().await?)
     }

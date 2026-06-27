@@ -41,7 +41,7 @@ impl MessageStream {
         while let Some(event) = self.next().await {
             acc.apply(&event?);
         }
-        Ok(acc.into_message())
+        acc.into_message()
     }
 }
 

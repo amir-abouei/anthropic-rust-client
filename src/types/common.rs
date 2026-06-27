@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 /// Conversation role.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Role {
     User,
     Assistant,
@@ -47,6 +48,7 @@ impl std::fmt::Display for Model {
 /// Reason Claude stopped generating.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum StopReason {
     EndTurn,
     MaxTokens,
@@ -89,6 +91,7 @@ pub struct ServerToolUseUsage {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum ServiceTier {
     Standard,
     Priority,
@@ -117,6 +120,7 @@ impl CacheControl {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum CacheControlType {
     Ephemeral,
 }

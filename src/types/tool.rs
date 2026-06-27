@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize, Serializer, ser::SerializeMap};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeMap};
 
 use super::common::CacheControl;
 
@@ -18,10 +18,20 @@ pub enum ToolChoice {
     Tool { name: String },
 }
 
+// ── Versioned server-tool type strings ───────────────────────────────────────
+
+const CUSTOM_TYPE: &str = "custom";
+const WEB_SEARCH_TYPE: &str = "web_search_20260209";
+const WEB_FETCH_TYPE: &str = "web_fetch_20260309";
+const CODE_EXECUTION_TYPE: &str = "code_execution_20260521";
+const BASH_TYPE: &str = "bash_20250124";
+const STR_REPLACE_EDITOR_TYPE: &str = "str_replace_editor_20250728";
+const MEMORY_TYPE: &str = "memory_20250818";
+
 // ── Tool definitions ──────────────────────────────────────────────────────────
 
 /// A custom (user-defined) tool.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct CustomTool {
     pub name: String,
     pub description: Option<String>,
@@ -54,7 +64,7 @@ impl CustomTool {
 impl Serialize for CustomTool {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut m = s.serialize_map(None)?;
-        m.serialize_entry("type", "custom")?;
+        m.serialize_entry("type", CUSTOM_TYPE)?;
         m.serialize_entry("name", &self.name)?;
         if let Some(d) = &self.description { m.serialize_entry("description", d)?; }
         m.serialize_entry("input_schema", &self.input_schema)?;
@@ -66,7 +76,7 @@ impl Serialize for CustomTool {
 }
 
 /// Web search server tool.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct WebSearchTool {
     pub name: Option<String>,
     pub max_uses: Option<u32>,
@@ -101,7 +111,7 @@ impl UserLocation {
 impl Serialize for WebSearchTool {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut m = s.serialize_map(None)?;
-        m.serialize_entry("type", "web_search_20260209")?;
+        m.serialize_entry("type", WEB_SEARCH_TYPE)?;
         if let Some(n) = &self.name { m.serialize_entry("name", n)?; }
         if let Some(mu) = self.max_uses { m.serialize_entry("max_uses", &mu)?; }
         if let Some(ad) = &self.allowed_domains { m.serialize_entry("allowed_domains", ad)?; }
@@ -113,7 +123,7 @@ impl Serialize for WebSearchTool {
 }
 
 /// Web fetch server tool.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct WebFetchTool {
     pub allowed_domains: Option<Vec<String>>,
     pub blocked_domains: Option<Vec<String>>,
@@ -123,7 +133,7 @@ pub struct WebFetchTool {
 impl Serialize for WebFetchTool {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut m = s.serialize_map(None)?;
-        m.serialize_entry("type", "web_fetch_20260309")?;
+        m.serialize_entry("type", WEB_FETCH_TYPE)?;
         if let Some(ad) = &self.allowed_domains { m.serialize_entry("allowed_domains", ad)?; }
         if let Some(bd) = &self.blocked_domains { m.serialize_entry("blocked_domains", bd)?; }
         if let Some(cc) = &self.cache_control { m.serialize_entry("cache_control", cc)?; }
@@ -132,7 +142,7 @@ impl Serialize for WebFetchTool {
 }
 
 /// Code execution server tool (Python sandbox).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct CodeExecutionTool {
     pub cache_control: Option<CacheControl>,
 }
@@ -140,14 +150,14 @@ pub struct CodeExecutionTool {
 impl Serialize for CodeExecutionTool {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut m = s.serialize_map(None)?;
-        m.serialize_entry("type", "code_execution_20260521")?;
+        m.serialize_entry("type", CODE_EXECUTION_TYPE)?;
         if let Some(cc) = &self.cache_control { m.serialize_entry("cache_control", cc)?; }
         m.end()
     }
 }
 
 /// Bash tool for shell command execution.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct BashTool {
     pub cache_control: Option<CacheControl>,
 }
@@ -155,14 +165,14 @@ pub struct BashTool {
 impl Serialize for BashTool {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut m = s.serialize_map(None)?;
-        m.serialize_entry("type", "bash_20250124")?;
+        m.serialize_entry("type", BASH_TYPE)?;
         if let Some(cc) = &self.cache_control { m.serialize_entry("cache_control", cc)?; }
         m.end()
     }
 }
 
 /// Text editor tool.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct StrReplaceEditorTool {
     pub cache_control: Option<CacheControl>,
 }
@@ -170,14 +180,14 @@ pub struct StrReplaceEditorTool {
 impl Serialize for StrReplaceEditorTool {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut m = s.serialize_map(None)?;
-        m.serialize_entry("type", "str_replace_editor_20250728")?;
+        m.serialize_entry("type", STR_REPLACE_EDITOR_TYPE)?;
         if let Some(cc) = &self.cache_control { m.serialize_entry("cache_control", cc)?; }
         m.end()
     }
 }
 
 /// Persistent memory tool.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct MemoryTool {
     pub cache_control: Option<CacheControl>,
 }
@@ -185,7 +195,7 @@ pub struct MemoryTool {
 impl Serialize for MemoryTool {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut m = s.serialize_map(None)?;
-        m.serialize_entry("type", "memory_20250818")?;
+        m.serialize_entry("type", MEMORY_TYPE)?;
         if let Some(cc) = &self.cache_control { m.serialize_entry("cache_control", cc)?; }
         m.end()
     }
@@ -254,6 +264,57 @@ impl Serialize for Tool {
             Self::Bash(t) => t.serialize(s),
             Self::StrReplaceEditor(t) => t.serialize(s),
             Self::Memory(t) => t.serialize(s),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Tool {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+
+        let value = serde_json::Value::deserialize(d)?;
+        let type_str = value
+            .get("type")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| D::Error::missing_field("type"))?;
+
+        match type_str {
+            CUSTOM_TYPE => serde_json::from_value(value)
+                .map(Tool::Custom)
+                .map_err(D::Error::custom),
+            WEB_SEARCH_TYPE => serde_json::from_value(value)
+                .map(Tool::WebSearch)
+                .map_err(D::Error::custom),
+            WEB_FETCH_TYPE => serde_json::from_value(value)
+                .map(Tool::WebFetch)
+                .map_err(D::Error::custom),
+            CODE_EXECUTION_TYPE => serde_json::from_value(value)
+                .map(Tool::CodeExecution)
+                .map_err(D::Error::custom),
+            BASH_TYPE => serde_json::from_value(value)
+                .map(Tool::Bash)
+                .map_err(D::Error::custom),
+            STR_REPLACE_EDITOR_TYPE => serde_json::from_value(value)
+                .map(Tool::StrReplaceEditor)
+                .map_err(D::Error::custom),
+            MEMORY_TYPE => serde_json::from_value(value)
+                .map(Tool::Memory)
+                .map_err(D::Error::custom),
+            other => Err(D::Error::unknown_variant(
+                other,
+                &[
+                    CUSTOM_TYPE,
+                    WEB_SEARCH_TYPE,
+                    WEB_FETCH_TYPE,
+                    CODE_EXECUTION_TYPE,
+                    BASH_TYPE,
+                    STR_REPLACE_EDITOR_TYPE,
+                    MEMORY_TYPE,
+                ],
+            )),
         }
     }
 }

@@ -47,8 +47,6 @@ pub struct ListFilesParams {
 }
 
 impl ListFilesParams {
-    pub fn new() -> Self { Self::default() }
-
     pub fn after_id(mut self, id: impl Into<String>) -> Self {
         self.after_id = Some(id.into());
         self

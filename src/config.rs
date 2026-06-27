@@ -5,14 +5,24 @@ const DEFAULT_API_VERSION: &str = "2023-06-01";
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
 /// Configuration for the Anthropic API client.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Config {
     pub(crate) api_key: String,
     pub(crate) base_url: String,
     pub(crate) api_version: String,
     pub(crate) timeout_secs: u64,
-    pub(crate) _max_retries: u32,
     pub(crate) default_headers: Vec<(String, String)>,
+}
+
+impl std::fmt::Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Config")
+            .field("api_key", &"[REDACTED]")
+            .field("base_url", &self.base_url)
+            .field("api_version", &self.api_version)
+            .field("timeout_secs", &self.timeout_secs)
+            .finish()
+    }
 }
 
 impl Config {
@@ -63,7 +73,6 @@ pub struct ConfigBuilder {
     base_url: String,
     api_version: String,
     timeout_secs: u64,
-    max_retries: u32,
     default_headers: Vec<(String, String)>,
 }
 
@@ -74,7 +83,6 @@ impl ConfigBuilder {
             base_url: DEFAULT_BASE_URL.to_string(),
             api_version: DEFAULT_API_VERSION.to_string(),
             timeout_secs: DEFAULT_TIMEOUT_SECS,
-            max_retries: 2,
             default_headers: Vec::new(),
         }
     }
@@ -94,11 +102,6 @@ impl ConfigBuilder {
         self
     }
 
-    pub fn max_retries(mut self, retries: u32) -> Self {
-        self.max_retries = retries;
-        self
-    }
-
     pub fn header(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.default_headers.push((key.into(), value.into()));
         self
@@ -110,7 +113,6 @@ impl ConfigBuilder {
             base_url: self.base_url,
             api_version: self.api_version,
             timeout_secs: self.timeout_secs,
-            _max_retries: self.max_retries,
             default_headers: self.default_headers,
         }
     }

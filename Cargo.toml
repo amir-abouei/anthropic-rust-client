@@ -1,0 +1,54 @@
+[package]
+name = "anthropic-rust-client"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Comprehensive Rust SDK for the Anthropic Claude API"
+license = "MIT"
+authors = ["Amir Abouei <a.abouei00@gmail.com>"]
+keywords = ["anthropic", "claude", "ai", "llm", "sdk"]
+categories = ["api-bindings", "asynchronous"]
+repository = "https://github.com/amir-abouei/anthropic-rust-client"
+homepage = "https://github.com/amir-abouei/anthropic-rust-client"
+documentation = "https://docs.rs/anthropic-rust-client"
+readme = "README.md"
+exclude = [".env*", ".github/", "tests/"]
+
+[dependencies]
+reqwest = { version = "0.12", features = ["json", "stream", "multipart"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+thiserror = "2"
+bytes = "1"
+base64 = "0.22"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+mockito = "1"
+serde_json = "1"
+
+[[example]]
+name = "basic_chat"
+path = "examples/basic_chat.rs"
+
+[[example]]
+name = "streaming"
+path = "examples/streaming.rs"
+
+[[example]]
+name = "tool_use"
+path = "examples/tool_use.rs"
+
+[[example]]
+name = "vision"
+path = "examples/vision.rs"
+
+[[example]]
+name = "thinking"
+path = "examples/thinking.rs"
+
+[[example]]
+name = "batch"
+path = "examples/batch.rs"
